@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title></title>
+	<link href="css/styles.css" rel="stylesheet" type="text/css" />
+    <style>
+	  *{
+		color: black;
+		margin: 0; padding: 0; box-sizing: border-box;
+		}
+	canvas {
+			border: 1px solid black;
+			background: white;
+        }
+    form { text-align: left; background: black; padding: 3px; position: fixed; bottom: 0; width: 100%; }
+    form input { border: 0; padding: 10px; width: 90%; margin-right: .5%; }
+    form button { width: 9%; background: pink; border: none; padding: 10px; }
+    #messages span.nickname { font-weight: bold; font-size: 120%; display: inline-block; width: 100px; }
+	#messages li:nth-child(odd) { background: pink; }
+    div.userList { text-align: center; width: 200px; min-height: 200px; border: 1px solid #999;}
+	#name_line {text-align:left}
+    </style>
+    <script src="jquery-3.1.0.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        $(document).ready(function () {
+            // 변수를 선언합니다.
+            var color = 'black';
+            var width = 1;
+            var isDown = false;
+            var newPoint, oldPoint;
+            // 소켓을 연결합니다.
+            var socket = io.connect();
+            // 캔버스를 추출합니다.
+            var canvas = document.getElementById('canvas');
+            var context = canvas.getContext('2d');
+            // 마우스 이벤트를 연결합니다.
+            $(canvas).mousedown(function (event) {
+                isDown = true;
+                oldPoint = {
+                    x: event.pageX - $(this).position().left,
+                    y: event.pageY - $(this).position().top
+                };
+            });
+            $(canvas).mousemove(function (event) {
+                if (!isDown) { return; }
+                newPoint = {
+                    x: event.pageX - $(this).position().left,
+                    y: event.pageY - $(this).position().top
+                };
+                socket.emit('line', {
+                    x1: oldPoint.x,
+                    y1: oldPoint.y,
+                    x2: newPoint.x,
+                    y2: newPoint.y,
+                    color: color,
+                    width: width
+                });
+                oldPoint = newPoint;
+            });
+            $(canvas).mouseup(function (event) {
+                isDown = false;
+                oldPoint = {
+                    x: event.pageX - $(this).position().left,
+                    y: event.pageY - $(this).position().top
+                };
+            });
+            // 입력 양식 이벤트를 연결합니다.
+            $('#pen').click(function () {
+                width = 1;
+                color = 'black';
+                $('#width').val(width);
+            });
+			$('#red').click(function () {
+                width = 1;
+                color = 'red';
+                $('#width').val(width);
+            });$('#green').click(function () {
+                width = 1;
+                color = 'green';
+                $('#width').val(width);
+            });$('#blue').click(function () {
+                width = 1;
+                color = 'blue';
+                $('#width').val(width);
+            });$('#orange').click(function () {
+                width = 1;
+                color = 'orange';
+                $('#width').val(width);
+            });
+            $('#eraser').click(function () {
+                width = 10;
+                color = 'white';
+                $('#width').val(width);
+            });
+            $('#width').change(function () {
+                width = $(this).val()
+            });
+			$('#clear').click(function () {
+                context.clearRect(0, 0, canvas.width, canvas.height);
+            });
+            // 소켓 이벤트를 연결합니다.
+            socket.on('line', function (data) {
+                context.beginPath();
+                context.lineWidth = data.width;
+                context.strokeStyle = data.color;
+                context.moveTo(data.x1, data.y1);
+                context.lineTo(data.x2, data.y2);
+                context.stroke();
+            });
+        });
+    </script>
+</head>
+<body>
+
+    <button id="pen"  >펜</button>
+	<button id="red" >빨강</button>
+	<button id="green" >초록</button>
+	<button id="blue" >파랑</button>
+	<button id="orange" >주황</button>
+    <button id="eraser" >지우개</button>
+	<button id="clear" >전체지우기</button>
+	<canvas id="canvas" width="1000" height="300"></canvas>
+    <input id="width" type="range" min="1" max="10" value="1" />
+    <br />
+	
+	 <br>
+	  <id = "name_line">
+	  <span>룸네임 : <input type = "text" id = "roomname" /></span>	
+	  닉네임 : <input id="nickname">&nbsp;<button id="joinBtn" >들어가기</button>
+	  <br>
+      <div class="userList">
+		<h3>현재 접속자</h3>
+		<ul id="userList"></ul>
+	  </div>
+	  <hr>
+	  <ul id="messages"></ul>
+	  <form>
+		<input id="m" autocomplete="off" /><button>Send</button>
+	  </form>
+	<script>
+
+	var nickname;
+	var socket = io();
+
+	// 이벤트: join 클릭 
+	$('#joinBtn').click(function(e){  
+	  fnNickname(e);
+	});
+
+	// 이벤트: nickname 엔터키 
+	$('#nickname').keypress(function(e) { 
+	  if (e.which == 13) {
+		fnNickname(e);
+	  }
+	});
+
+	// 송신: 닉네임
+	function fnNickname(e) {
+	  if ($('#nickname').val().trim() == '') {
+		alert('Input your nickname!');
+		return false;
+	  }
+	  nickname = $('#nickname').val().trim();
+	  socket.emit('join', nickname);  // 접속 이벤트
+	}
+	// 수신: 환영인사
+	socket.on('welcome', function(data){
+	  // 유저리스트 업데이트
+	  fnUpdateUserList(data.userList);	  
+	});
+
+	// 유저리스트 업데이트
+	function fnUpdateUserList(userList) {
+	  $('#userList').text('');
+	  for (i = 0; i < userList.length; i++) {
+		$('#userList').append($('<li>').text(userList[i]));
+	  };
+	}
+	// 수신: 신규자 접속
+
+	// 송신: 메시지
+	$('form').submit(function(){
+	  socket.emit('msg', $('#m').val(), $('#roomname').val());
+	  $('#m').val('');
+	  return false;
+	});
+	  
+	// 수신: 메시지
+	socket.on('msg', function(data, room){
+	  if($('#roomname').val()== room){
+		var span = $('<span class="nickname">').text(data.nickname);
+		var li = $('<li>').append(span).append(data.msg);
+		$('#messages').append(li);
+	  }
+	  else{}
+	});
+
+	</script>	
+</body>
+</html>
